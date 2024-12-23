@@ -1,7 +1,6 @@
 package org.brocode.orderservice.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.brocode.orderservice.Exception.NotFoundException;
 import org.brocode.orderservice.Exception.ProductOutOfStockException;
@@ -15,15 +14,12 @@ import org.brocode.orderservice.repository.OrderRepository;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.util.UriBuilder;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-import static java.util.Arrays.stream;
 
 @Service
 @Slf4j
@@ -32,33 +28,32 @@ import static java.util.Arrays.stream;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final WebClient webClient;
+    private final InventoryService inventoryService;
+
 
     public boolean createOrder(OrderRequest orderRequest) throws ProductOutOfStockException {
 
-        Order order = new Order();
-        order.setOrderNumber(UUID.randomUUID().toString());
+        Order order = mapOrderRequestToOrder(orderRequest);
         System.out.println("order request details service: " + orderRequest.getOrderLineItemsDtoList());
-
-        List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList()
-                .stream().map(this::mapToOrderLineItems).toList();
-
-        order.setOrderLineItemsList(orderLineItems);
 
         List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
 
-        InventoryResponse[] inventoryResponses = webClient.get().uri("http://localhost:8082/api/inventory", uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
-                .retrieve().bodyToMono(InventoryResponse[].class).block();
-
-        boolean allMatchOrders = Arrays.stream(inventoryResponses).allMatch(InventoryResponse::isInStock);
-
-        if (allMatchOrders) {
+        if (inventoryService.isStockAvailable(skuCodes)) {
             orderRepository.save(order);
             return true;
         } else {
             throw new ProductOutOfStockException("Few Products in your order are currently out of stock.");
         }
 
+    }
+
+    public Order mapOrderRequestToOrder(OrderRequest orderRequest) {
+        Order order = new Order();
+        order.setOrderNumber(UUID.randomUUID().toString());
+        List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList()
+                .stream().map(this::mapToOrderLineItems).toList();
+        order.setOrderLineItemsList(orderLineItems);
+        return order;
     }
 
     public OrderLineItems mapToOrderLineItems(OrderLineItemsDto orderLineItemsDto) {

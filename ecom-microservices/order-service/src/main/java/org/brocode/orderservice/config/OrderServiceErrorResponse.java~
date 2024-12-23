@@ -1,0 +1,15 @@
+package org.brocode.orderservice.config;
+
+public class OrderServiceErrorResponse {
+
+    private String errorCode;
+    private String errorMessage;
+
+    public OrderServiceErrorResponse(String errorCode, String errorMessage) {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+    }
+
+    
+
+}
