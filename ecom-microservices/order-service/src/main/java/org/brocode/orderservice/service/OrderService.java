@@ -15,6 +15,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -38,13 +42,11 @@ public class OrderService {
 
         List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
 
-        if (inventoryService.isStockAvailable(skuCodes)) {
-            orderRepository.save(order);
-            return true;
-        } else {
+        if (!inventoryService.isStockAvailable(skuCodes)) {
             throw new ProductOutOfStockException("Few Products in your order are currently out of stock.");
         }
-
+            orderRepository.save(order);
+            return true;
     }
 
     public Order mapOrderRequestToOrder(OrderRequest orderRequest) {
@@ -53,6 +55,8 @@ public class OrderService {
         List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList()
                 .stream().map(this::mapToOrderLineItems).toList();
         order.setOrderLineItemsList(orderLineItems);
+        LocalDateTime orderDate = LocalDateTime.now();
+        order.setOrderDate(orderDate);
         return order;
     }
 
@@ -83,6 +87,29 @@ public class OrderService {
         OrderResponseDTO orderResponseDTO = new OrderResponseDTO();
         orderResponseDTO.setOrderNumber(order.getOrderNumber());
         orderResponseDTO.setOrderLineItemsList(order.getOrderLineItemsList());
+        orderResponseDTO.setOrderDate(order.getOrderDate());
         return orderResponseDTO;
+    }
+
+    public List<OrderResponseDTO> getOrderByDate(String date){
+
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        LocalDateTime startDateTime = null;
+        LocalDateTime endDateTime = null;
+
+        try{
+            LocalDate convertedDate = LocalDate.parse(date, dateTimeFormatter);
+            startDateTime = convertedDate.atStartOfDay();
+            endDateTime = convertedDate.atTime(23,59,59);
+
+        }catch (DateTimeParseException de){
+            throw new DateTimeParseException("Invalid date format. Expected format is yyyy-MM-dd. "
+                    ,date ,de.getErrorIndex(), de );
+        }
+
+        List<Order> orders =  orderRepository.findAllByOrderDateBetween(startDateTime, endDateTime);
+
+        return orders.stream().map(this::getOrderResponse).toList();
+
     }
 }
