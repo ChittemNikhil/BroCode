@@ -8,6 +8,7 @@ import org.brocode.orderservice.dto.ExceptionDto;
 import org.brocode.orderservice.dto.OrderLineItemsDto;
 import org.brocode.orderservice.dto.OrderRequest;
 import org.brocode.orderservice.dto.OrderResponseDTO;
+import org.brocode.orderservice.model.Order;
 import org.brocode.orderservice.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,16 +39,6 @@ public class OrderController {
 //        return("Order placed Succesfully");
 //    }
 
-    @ExceptionHandler(ProductOutOfStockException.class)
-    public ResponseEntity<ExceptionDto> handleOutOfStockException(ProductOutOfStockException productOutOfStockException){
-        return new ResponseEntity<>(new ExceptionDto(HttpStatus.INTERNAL_SERVER_ERROR,productOutOfStockException.getMessage()),HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<ExceptionDto> handleNotFoundException(NotFoundException notFoundException){
-        return new ResponseEntity<>(new ExceptionDto(HttpStatus.NOT_FOUND,notFoundException.getMessage()),HttpStatus.NOT_FOUND);
-    }
-
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
     public ResponseEntity<List<OrderResponseDTO>> getOrders() {
@@ -58,4 +49,25 @@ public class OrderController {
     public ResponseEntity<OrderResponseDTO> getOrderById(@PathVariable ("id") int id) throws NotFoundException {
         return new ResponseEntity<>(orderService.getOrderById(id),HttpStatus.OK);
     }
+
+    @GetMapping("/by-date/{date}")
+    public ResponseEntity<List<OrderResponseDTO>> getOrderByDate(@PathVariable ("date") String date) throws NotFoundException{
+        return new ResponseEntity<>(orderService.getOrderByDate(date), HttpStatus.OK);
+    }
+
+
+//    @GetMapping("/orders")
+//    public ResponseEntity<?> getOrders(
+//            @RequestParam(required = false) Integer id,
+//            @RequestParam(required = false) String date) throws NotFoundException {
+//        if (id != null) {
+//            OrderResponseDTO order = orderService.getOrderById(id);
+//            return ResponseEntity.ok(order);
+//        } else if (date != null) {
+//            List<OrderResponseDTO> orders = orderService.getOrderByDate(date);
+//            return ResponseEntity.ok(orders);
+//        }
+//        return ResponseEntity.badRequest().body("Please provide either an ID or a date.");
+//    }
+
 }

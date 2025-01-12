@@ -1,0 +1,19 @@
+package org.brocode.orderservice.config;
+
+import org.brocode.orderservice.Exception.ProductOutOfStockException;
+import org.brocode.orderservice.service.OrderService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @Exce
+    public ResponseEntity<OrderServiceErrorResponse> handleProductOutOfStockException(ProductOutOfStockException ex){
+
+        OrderServiceErrorResponse errorResponse = new OrderServiceErrorResponse("PRODUCT_OUT_OF_STOCK", ex.getMessage());
+        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
+    }
+}

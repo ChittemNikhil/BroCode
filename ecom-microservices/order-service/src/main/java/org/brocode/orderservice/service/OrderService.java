@@ -1,7 +1,6 @@
 package org.brocode.orderservice.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.brocode.orderservice.Exception.NotFoundException;
 import org.brocode.orderservice.Exception.ProductOutOfStockException;
@@ -15,15 +14,16 @@ import org.brocode.orderservice.repository.OrderRepository;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.util.UriBuilder;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-import static java.util.Arrays.stream;
 
 @Service
 @Slf4j
@@ -32,33 +32,32 @@ import static java.util.Arrays.stream;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final WebClient webClient;
+    private final InventoryService inventoryService;
+
 
     public boolean createOrder(OrderRequest orderRequest) throws ProductOutOfStockException {
 
-        Order order = new Order();
-        order.setOrderNumber(UUID.randomUUID().toString());
+        Order order = mapOrderRequestToOrder(orderRequest);
         System.out.println("order request details service: " + orderRequest.getOrderLineItemsDtoList());
-
-        List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList()
-                .stream().map(this::mapToOrderLineItems).toList();
-
-        order.setOrderLineItemsList(orderLineItems);
 
         List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
 
-        InventoryResponse[] inventoryResponses = webClient.get().uri("http://localhost:8082/api/inventory", uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
-                .retrieve().bodyToMono(InventoryResponse[].class).block();
-
-        boolean allMatchOrders = Arrays.stream(inventoryResponses).allMatch(InventoryResponse::isInStock);
-
-        if (allMatchOrders) {
-            orderRepository.save(order);
-            return true;
-        } else {
+        if (!inventoryService.isStockAvailable(skuCodes)) {
             throw new ProductOutOfStockException("Few Products in your order are currently out of stock.");
         }
+            orderRepository.save(order);
+            return true;
+    }
 
+    public Order mapOrderRequestToOrder(OrderRequest orderRequest) {
+        Order order = new Order();
+        order.setOrderNumber(UUID.randomUUID().toString());
+        List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList()
+                .stream().map(this::mapToOrderLineItems).toList();
+        order.setOrderLineItemsList(orderLineItems);
+        LocalDateTime orderDate = LocalDateTime.now();
+        order.setOrderDate(orderDate);
+        return order;
     }
 
     public OrderLineItems mapToOrderLineItems(OrderLineItemsDto orderLineItemsDto) {
@@ -88,6 +87,29 @@ public class OrderService {
         OrderResponseDTO orderResponseDTO = new OrderResponseDTO();
         orderResponseDTO.setOrderNumber(order.getOrderNumber());
         orderResponseDTO.setOrderLineItemsList(order.getOrderLineItemsList());
+        orderResponseDTO.setOrderDate(order.getOrderDate());
         return orderResponseDTO;
+    }
+
+    public List<OrderResponseDTO> getOrderByDate(String date){
+
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        LocalDateTime startDateTime = null;
+        LocalDateTime endDateTime = null;
+
+        try{
+            LocalDate convertedDate = LocalDate.parse(date, dateTimeFormatter);
+            startDateTime = convertedDate.atStartOfDay();
+            endDateTime = convertedDate.atTime(23,59,59);
+
+        }catch (DateTimeParseException de){
+            throw new DateTimeParseException("Invalid date format. Expected format is yyyy-MM-dd. "
+                    ,date ,de.getErrorIndex(), de );
+        }
+
+        List<Order> orders =  orderRepository.findAllByOrderDateBetween(startDateTime, endDateTime);
+
+        return orders.stream().map(this::getOrderResponse).toList();
+
     }
 }
