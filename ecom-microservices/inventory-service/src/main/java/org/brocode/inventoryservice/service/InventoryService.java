@@ -8,6 +8,7 @@ import org.brocode.inventoryservice.model.Inventory;
 import org.brocode.inventoryservice.repository.InventoryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +22,20 @@ public class InventoryService {
     private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
     private final InventoryRepository inventoryRepository;
 
+    private final RabbitTemplate rabbitTemplate;
+
     @Transactional(readOnly = true)
     public List<InventoryResponse> isInStock(List<String> skuCode) {
 
         return inventoryRepository.findBySkuCodeIn(skuCode).stream().map(inventory ->
                 InventoryResponse.builder().skuCode(inventory.getSkuCode())
                         .inStock(inventory.getQuantity() > 0).build()).toList();
+    }
+
+
+    public Boolean checkInventory(List<String> skuCodes){
+        boolean allInStock = inventoryRepository.findBySkuCodeIn(skuCodes).stream().allMatch(inventory -> inventory.getQuantity() > 0);
+        return allInStock;
     }
 
     public List<ProductAvailabilityResponse> isAvailable(List<String> skuCode) {

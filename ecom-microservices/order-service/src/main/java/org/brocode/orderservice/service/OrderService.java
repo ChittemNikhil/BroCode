@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.brocode.orderservice.Exception.NotFoundException;
 import org.brocode.orderservice.Exception.ProductOutOfStockException;
+import org.brocode.orderservice.config.RabbitMQConfig;
 import org.brocode.orderservice.dto.InventoryResponse;
 import org.brocode.orderservice.dto.OrderLineItemsDto;
 import org.brocode.orderservice.dto.OrderRequest;
@@ -11,6 +12,7 @@ import org.brocode.orderservice.dto.OrderResponseDTO;
 import org.brocode.orderservice.model.Order;
 import org.brocode.orderservice.model.OrderLineItems;
 import org.brocode.orderservice.repository.OrderRepository;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,19 +36,24 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final InventoryService inventoryService;
 
+    private final RabbitTemplate rabbitTemplate;
+
 
     public boolean createOrder(OrderRequest orderRequest) throws ProductOutOfStockException {
 
-        Order order = mapOrderRequestToOrder(orderRequest);
+        List<String> skuCodes = orderRequest.getOrderLineItemsDtoList().stream().map(OrderLineItemsDto::getSkuCode).toList();
+
         System.out.println("order request details service: " + orderRequest.getOrderLineItemsDtoList());
 
-        List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
+        Boolean isInStock = (Boolean) rabbitTemplate.convertSendAndReceive(RabbitMQConfig.INVENTORY_REQUEST_QUEUE, skuCodes);
 
-        if (!inventoryService.isStockAvailable(skuCodes)) {
-            throw new ProductOutOfStockException("Few Products in your order are currently out of stock.");
+        if(isInStock == null || !isInStock){
+            throw new ProductOutOfStockException("Products are out of stock.");
         }
-            orderRepository.save(order);
-            return true;
+        Order order = mapOrderRequestToOrder(orderRequest);
+
+        orderRepository.save(order);
+        return true;
     }
 
     public Order mapOrderRequestToOrder(OrderRequest orderRequest) {
