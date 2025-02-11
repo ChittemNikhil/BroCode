@@ -38,7 +38,7 @@ public class OrderService {
     public boolean createOrder(OrderRequest orderRequest) throws ProductOutOfStockException {
 
         Order order = mapOrderRequestToOrder(orderRequest);
-        System.out.println("order request details service: " + orderRequest.getOrderLineItemsDtoList());
+        log.info("order request details service: {}" , orderRequest.getOrderLineItemsDtoList());
 
         List<String> skuCodes = order.getOrderLineItemsList().stream().map(OrderLineItems::getSkuCode).toList();
 
